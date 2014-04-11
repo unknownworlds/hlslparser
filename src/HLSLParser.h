@@ -58,9 +58,9 @@ private:
     bool ExpectDeclaration(bool allowUnsizedArray, HLSLType& type, const char*& name);
 
     bool ParseTopLevel(HLSLStatement*& statement);
-    bool ParseBlock(HLSLStatement*& firstStatement);
-    bool ParseStatementOrBlock(HLSLStatement*& firstStatement);
-    bool ParseStatement(HLSLStatement*& statement);
+    bool ParseBlock(HLSLStatement*& firstStatement, const HLSLType& returnType);
+    bool ParseStatementOrBlock(HLSLStatement*& firstStatement, const HLSLType& returnType);
+    bool ParseStatement(HLSLStatement*& statement, const HLSLType& returnType);
     bool ParseDeclaration(HLSLDeclaration*& declaration);
     bool ParseFieldDeclaration(HLSLStructField*& field);
     bool ParseBufferFieldDeclaration(HLSLBufferField*& field);
@@ -93,6 +93,8 @@ private:
 
     /** Gets the type of the named field on the specified object type (fieldName can also specify a swizzle. ) */
     bool GetMemberType(const HLSLType& objectType, const char* fieldName, HLSLType& memberType);
+
+    bool CheckTypeCast(const HLSLType& srcType, const HLSLType& dstType);
 
     const char* GetFileName();
     int GetLineNumber() const;

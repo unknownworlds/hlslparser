@@ -35,7 +35,8 @@ const char* GLSLGenerator::s_reservedWord[] =
         "output",
         "input",
         "mod",
-        "mix"
+        "mix",
+        "fract"
     };
 
 static const char* GetTypeName(const HLSLType& type)
@@ -642,7 +643,11 @@ void GLSLGenerator::OutputIdentifier(const char* name)
     {
         name = "mix";
     }
-    else 
+    else if (String_Equal(name, "frac"))
+    {
+        name = "fract";
+    }
+    else
     {
         // The identifier could be a GLSL reserved word (if it's not also a HLSL reserved word).
         name = GetSafeIdentifierName(name);

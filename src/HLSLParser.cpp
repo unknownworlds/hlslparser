@@ -162,9 +162,11 @@ const Intrinsic _intrinsic[] =
         INTRINSIC_FLOAT1_FUNCTION( "cos" ),
 
         INTRINSIC_FLOAT3_FUNCTION( "lerp" ),
+        INTRINSIC_FLOAT3_FUNCTION( "smoothstep" ),
 
         INTRINSIC_FLOAT1_FUNCTION( "floor" ),
         INTRINSIC_FLOAT1_FUNCTION( "ceil" ),
+        INTRINSIC_FLOAT1_FUNCTION( "frac" ),
 
         INTRINSIC_FLOAT2_FUNCTION( "fmod" ),
 
@@ -910,7 +912,7 @@ bool HLSLParser::ParseTopLevel(HLSLStatement*& statement)
             
             m_functions.PushBack( function );
 
-            if (!Expect('{') || !ParseBlock(function->statement))
+            if (!Expect('{') || !ParseBlock(function->statement, function->returnType))
             {
                 return false;
             }
@@ -968,12 +970,12 @@ bool HLSLParser::ParseTopLevel(HLSLStatement*& statement)
 
 }
 
-bool HLSLParser::ParseStatementOrBlock(HLSLStatement*& firstStatement)
+bool HLSLParser::ParseStatementOrBlock(HLSLStatement*& firstStatement, const HLSLType& returnType)
 {
     if (Accept('{'))
     {
         BeginScope();
-        if (!ParseBlock(firstStatement))
+        if (!ParseBlock(firstStatement, returnType))
         {
             return false;
         }
@@ -982,11 +984,11 @@ bool HLSLParser::ParseStatementOrBlock(HLSLStatement*& firstStatement)
     }
     else
     {
-        return ParseStatement(firstStatement);
+        return ParseStatement(firstStatement, returnType);
     }
 }
 
-bool HLSLParser::ParseBlock(HLSLStatement*& firstStatement)
+bool HLSLParser::ParseBlock(HLSLStatement*& firstStatement, const HLSLType& returnType)
 {
     HLSLStatement* lastStatement = NULL;
     while (!Accept('}'))
@@ -996,7 +998,7 @@ bool HLSLParser::ParseBlock(HLSLStatement*& firstStatement)
             return false;
         }
         HLSLStatement* statement = NULL;
-        if (!ParseStatement(statement))
+        if (!ParseStatement(statement, returnType))
         {
             return false;
         }
@@ -1016,7 +1018,7 @@ bool HLSLParser::ParseBlock(HLSLStatement*& firstStatement)
     return true;
 }
 
-bool HLSLParser::ParseStatement(HLSLStatement*& statement)
+bool HLSLParser::ParseStatement(HLSLStatement*& statement, const HLSLType& returnType)
 {
     const char* fileName = GetFileName();
     int         line     = GetLineNumber();
@@ -1036,13 +1038,13 @@ bool HLSLParser::ParseStatement(HLSLStatement*& statement)
             return false;
         }
         statement = ifStatement;
-        if (!ParseStatementOrBlock(ifStatement->statement))
+        if (!ParseStatementOrBlock(ifStatement->statement, returnType))
         {
             return false;
         }
         if (Accept(HLSLToken_Else))
         {
-            return ParseStatementOrBlock(ifStatement->elseStatement);
+            return ParseStatementOrBlock(ifStatement->elseStatement, returnType);
         }
         return true;
     }
@@ -1075,7 +1077,7 @@ bool HLSLParser::ParseStatement(HLSLStatement*& statement)
             return false;
         }
         statement = forStatement;
-        if (!ParseStatementOrBlock(forStatement->statement))
+        if (!ParseStatementOrBlock(forStatement->statement, returnType))
         {
             return false;
         }
@@ -1115,6 +1117,12 @@ bool HLSLParser::ParseStatement(HLSLStatement*& statement)
         {
             return false;
         }
+        // Check that the return expression can be cast to the return type of the function.
+        if (!CheckTypeCast(returnStatement->expression->expressionType, returnType))
+        {
+            return false;
+        }
+
         statement = returnStatement;
         return Expect(';');
     }
@@ -1222,6 +1230,17 @@ bool HLSLParser::ParseBufferFieldDeclaration(HLSLBufferField*& field)
     return false;
 }
 
+bool HLSLParser::CheckTypeCast(const HLSLType& srcType, const HLSLType& dstType)
+{
+    if (GetTypeCastRank(srcType, dstType) == -1)
+    {
+        const char* srcTypeName = GetTypeName(srcType);
+        const char* dstTypeName = GetTypeName(dstType);
+        m_tokenizer.Error("Cannot implicitly convert from '%s' to '%s'", srcTypeName, dstTypeName);
+        return false;
+    }
+    return true;
+}
 
 bool HLSLParser::ParseExpression(HLSLExpression*& expression)
 {
@@ -1245,11 +1264,8 @@ bool HLSLParser::ParseExpression(HLSLExpression*& expression)
         // However, for our usage of the types it should be sufficient.
         binaryExpression->expressionType = expression->expressionType;
 
-        if (GetTypeCastRank(expression2->expressionType, expression->expressionType) == -1)
+        if (!CheckTypeCast(expression2->expressionType, expression->expressionType))
         {
-            const char* srcTypeName = GetTypeName(expression2->expressionType);
-            const char* dstTypeName = GetTypeName(expression->expressionType);
-            m_tokenizer.Error("Cannot implicitly convert from '%s' to '%s'", srcTypeName, dstTypeName);
             return false;
         }
 
@@ -2135,11 +2151,6 @@ const HLSLFunction* HLSLParser::MatchFunctionCall(const HLSLFunctionCall* functi
     int  numArguments           = functionCall->numArguments;
     int  numMatchedOverloads    = 0;
     bool nameMatches            = false;
-
-    if (String_Equal(name, "pow"))
-    {
-        int a = 0;
-    }
 
     // Get the user defined functions with the specified name.
     for (int i = 0; i < m_functions.GetSize(); ++i)
