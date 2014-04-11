@@ -9,6 +9,7 @@
 
 #include "Engine/String.h"
 #include "Engine/Log.h"
+#include "Engine/Assert.h"
 
 #include "HLSLGenerator.h"
 #include "HLSLParser.h"

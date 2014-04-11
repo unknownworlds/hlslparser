@@ -8,6 +8,7 @@
 //=============================================================================
 
 #include "Engine/String.h"
+#include "Engine/Assert.h"
 
 #include "HLSLParser.h"
 #include "HLSLTree.h"
